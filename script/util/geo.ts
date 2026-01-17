@@ -47,3 +47,76 @@ export function getNameCode(name: string) {
     .replace(/number /, "no ")
     .replace(/[^A-Za-z0-9āēīōū]/g, "");
 }
+
+const abbrLookup: Record<string, string> = {
+  ALY: "Alley",
+  AVE: "Avenue",
+  BAY: "Bay",
+  BLVD: "Boulevard",
+  CIR: "Circle",
+  COR: "Corner",
+  CRES: "Crescent",
+  CRK: "Creek",
+  CT: "Court",
+  CTR: "Center",
+  CV: "Cove",
+  CYN: "Canyon",
+  DR: "Drive",
+  EST: "Estate",
+  ESTS: "Estates",
+  EXPY: "Expressway",
+  FLT: "Flat",
+  FRK: "Fork",
+  FWY: "Freeway",
+  GLN: "Glen",
+  GRV: "Grove",
+  GTWY: "Gateway",
+  HL: "Hill",
+  HOLW: "Hollow",
+  HTS: "Heights",
+  HWY: "Highway",
+  JCT: "Junction",
+  LN: "Lane",
+  LNDG: "Landing",
+  LOOP: "Loop",
+  MDW: "Meadow",
+  MDWS: "Meadows",
+  MNR: "Manor",
+  PARK: "Park",
+  PASS: "Pass",
+  PATH: "Path",
+  PKWY: "Parkway",
+  PL: "Place",
+  PLZ: "Plaza",
+  PT: "Point",
+  RD: "Road",
+  RDG: "Ridge",
+  RNCH: "Ranch",
+  ROW: "Row",
+  RTE: "Route",
+  RUN: "Run",
+  SPUR: "Spur",
+  SQ: "Square",
+  ST: "Street",
+  TER: "Terrace",
+  TRCE: "Trace",
+  TRL: "Trail",
+  VIS: "Vista",
+  VLG: "Village",
+  VW: "View",
+  WAY: "Way",
+  XING: "Crossing",
+  S: "South",
+  N: "North",
+  E: "East",
+  W: "West",
+};
+
+export function normalizeStreetName(rawName: string): string {
+  const words = rawName.split(/\s+/).map((w) => w.trim());
+  const expanded = words.map((w) => {
+    const upper = w.toUpperCase();
+    return abbrLookup[upper] || w.toLowerCase();
+  });
+  return expanded.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+}

@@ -1,54 +1,45 @@
 import { promises as fs } from "fs";
-import { FeatureCollection, MultiLineString } from "geojson";
+import { FeatureCollection, LineString } from "geojson";
 import {
   ConflatedStreet,
   conflationResult,
   distanceBetween,
-  linzJsonFile,
-  LinzPlanet,
-  LinzStreet,
+  ugrcJsonFile,
+  UgrcPlanet,
+  UgrcStreet,
   OsmPlanet,
   OsmStreet,
   planetJsonFile,
 } from "./util";
 import { calcBBox } from "./util/calcBbox";
 
-type GeoJsonOutput = FeatureCollection<MultiLineString, ConflatedStreet> & {
+type GeoJsonOutput = FeatureCollection<LineString, ConflatedStreet> & {
   lastUpdated: string;
 };
 
-// only used for comparing names
-const stripMacrons = (str: string) =>
-  str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-
-const checkIfMatches = (linzStreet: LinzStreet) => (osmStreet: OsmStreet) => {
+const checkIfMatches = (ugrcStreet: UgrcStreet) => (osmStreet: OsmStreet) => {
+  // console.log("comparing", osmStreet, "to", ugrcStreet);
   const namesMatch =
-    osmStreet.nameCode === linzStreet.nameCode ||
-    osmStreet.otherNameCodes?.includes(linzStreet.nameCode) ||
-    // the next two checks allow the OSM feature to have macrons, even
-    // if the LINZ feature doesn't have them
-    stripMacrons(osmStreet.nameCode) === linzStreet.nameCode ||
-    osmStreet.otherNameCodes?.some(
-      (altName) => stripMacrons(altName) === linzStreet.nameCode
-    );
+    osmStreet.nameCode === ugrcStreet.nameCode ||
+    osmStreet.otherNameCodes?.includes(ugrcStreet.nameCode);
 
   // higher tolerance for long roads
   const closeEnough =
     distanceBetween(
       osmStreet.lat,
       osmStreet.lng,
-      linzStreet.lat,
-      linzStreet.lng
+      ugrcStreet.lat,
+      ugrcStreet.lng
     ) <
-    10_000 + 2 * linzStreet.streetLength;
+    10_000 + 2 * ugrcStreet.streetLength;
 
   return namesMatch && closeEnough;
 };
 
 async function main() {
   console.log("Reading LINZ json...");
-  const linzDB: LinzPlanet = JSON.parse(
-    await fs.readFile(linzJsonFile, "utf8")
+  const ugrcDB: UgrcPlanet = JSON.parse(
+    await fs.readFile(ugrcJsonFile, "utf8")
   );
 
   console.log("Reading OSM json...");
@@ -63,41 +54,42 @@ async function main() {
     lastUpdated: new Date().toISOString(),
   };
 
-  for (const sector in linzDB) {
-    const allLinz = linzDB[sector];
+  for (const sector in ugrcDB) {
+    const allUgrc = ugrcDB[sector];
     const osmGrouped = osmDB[sector] || {};
     const allOsm = Object.values(osmGrouped).flat();
 
-    for (const [i, linzStreet] of allLinz.entries()) {
+    for (const [i, ugrcStreet] of allUgrc.entries()) {
       // 1. if we're lucky we can find an exact match within this group
-      let possibleOsmMatches = osmGrouped[linzStreet.nameCode]?.filter(
-        checkIfMatches(linzStreet)
+      let possibleOsmMatches = osmGrouped[ugrcStreet.nameCode]?.filter(
+        checkIfMatches(ugrcStreet)
       );
 
       if (!possibleOsmMatches?.length) {
         // 2. If not, we try again by searching thru the full list.
-        possibleOsmMatches = allOsm.filter(checkIfMatches(linzStreet));
+        possibleOsmMatches = allOsm.filter(checkIfMatches(ugrcStreet));
       }
 
       if (!possibleOsmMatches.length) {
         // 3. If there are still no matches, do a final check if it's a state highway
-        const skip =
-          linzStreet.name.includes("State Highway") ||
-          linzStreet.name.includes("Motorway");
+        // const skip =
+        //   ugrcStreet.name.includes("State Highway") ||
+        //   ugrcStreet.name.includes("Motorway");
 
-        if (!skip) {
-          // 4. If we get to this point, flag the street as missing
-          missing.features.push({
-            type: "Feature",
-            id: `${sector}_${i}`,
-            bbox: calcBBox(linzStreet.geometry),
-            geometry: linzStreet.geometry,
-            properties: {
-              roadId: linzStreet.roadId,
-              name: linzStreet.name,
-            },
-          });
-        }
+        // if (!skip) {
+        // 4. If we get to this point, flag the street as missing
+        console.log("found no match for", ugrcStreet.name);
+        missing.features.push({
+          type: "Feature",
+          id: `${sector}_${i}`,
+          bbox: calcBBox(ugrcStreet.geometry),
+          geometry: ugrcStreet.geometry,
+          properties: {
+            roadId: ugrcStreet.roadId,
+            name: ugrcStreet.name,
+          },
+        });
+        // }
       }
     }
   }

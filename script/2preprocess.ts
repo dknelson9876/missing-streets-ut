@@ -1,22 +1,22 @@
-import { promises as fs, createReadStream } from "fs";
-import csv from "csv-parser";
+/* eslint-disable eslint-comments/disable-enable-pair */
+/* eslint-disable no-continue */
+import { promises as fs } from "fs";
 import pbf2json, { Item } from "pbf2json";
 import through from "through2";
-import { parse as wktToGeoJson } from "wellknown";
 import { Geometry, Position } from "geojson";
 import {
   distanceBetween,
   getNameCode,
   getSector,
-  linzJsonFile,
-  LinzPlanet,
-  linzRawFile,
-  LinzStreet,
+  ugrcJsonFile,
+  UgrcPlanet,
+  ugrcRawFile,
+  UgrcStreet,
   OsmPlanet,
   OsmStreet,
   planetJsonFile,
   planetRawFile,
-  RawCsvStreet,
+  normalizeStreetName,
 } from "./util";
 
 // baseline is 70 seconds
@@ -104,69 +104,61 @@ function getEnds(geometry: Geometry): [Position, Position] | [null, null] {
   return [null, null];
 }
 
-async function readFromLinz() {
-  return new Promise((resolve, reject) => {
-    console.log("Reading LINZ csv...");
-    const out: LinzPlanet = {};
-    createReadStream(linzRawFile)
-      .pipe(csv())
-      .on("data", (item: RawCsvStreet) => {
-        const name = item.full_road_name;
-        if (!name || !item.road_name_type) return;
+async function readFromUgrc(): Promise<UgrcPlanet> {
+  console.log("Reading UGRC geojson...");
+  const data = await fs.readFile(ugrcRawFile, "utf8");
+  const geojson = JSON.parse(data);
+  const out: UgrcPlanet = {};
 
-        // we have to do this because of a special character at position 0,0 in every linz CSV file
-        const wktField = <"WKT">Object.keys(item)[0];
+  for (const feature of geojson.features) {
+    const { geometry } = feature;
+    const props = feature.properties || {};
+    const rawName = props.FULLNAME || props.NAME || null;
+    const name = rawName ? normalizeStreetName(rawName) : null;
 
-        const geometry = wktToGeoJson(item[wktField]);
-        if (!geometry) {
-          console.log("Invalid geometry", name);
-          return;
-        }
-        if (geometry.type !== "MultiLineString") {
-          console.warn("Unexpected geometry type", geometry.type);
-          return; // there's no reason why we can't allow other geometry types
-        }
+    if (!name || !geometry) continue;
 
-        const [first, last] = getEnds(geometry);
-        if (!first || !last) return;
+    if (geometry.type !== "LineString") {
+      console.warn("Unexpected geometry type", geometry.type);
+      continue;
+    }
 
-        const [firstLng, firstLat] = first;
-        const [lastLng, lastLat] = last;
+    const [first, last] = getEnds(geometry);
+    if (!first || !last) continue;
 
-        const [firstSector, lastSector] = [
-          getSector(firstLat, firstLng),
-          getSector(lastLat, lastLng),
-        ];
+    const [firstLng, firstLat] = first;
+    const [lastLng, lastLat] = last;
 
-        if (firstSector !== lastSector) return; // TEMP: skip big roads
+    const [firstSector, lastSector] = [
+      getSector(firstLat, firstLng),
+      getSector(lastLat, lastLng),
+    ];
 
-        // when processing a LINZ street that exists in two sectors: add it to the smallest sector.
-        const sector = firstSector; // Math.min(firstSector, lastSector);
+    if (firstSector !== lastSector) continue; // skip long lines
 
-        const street: LinzStreet = {
-          roadId: +item.road_id,
-          name,
-          nameCode: getNameCode(name),
-          streetLength: distanceBetween(firstLat, firstLng, lastLat, lastLng),
-          geometry,
-          lat: firstLat,
-          lng: firstLng,
-        };
+    // console.log("Translated", getNameCode(name), "in sector", firstSector);
+    const sector = firstSector;
+    const street: UgrcStreet = {
+      roadId: +props.OBJECTID,
+      name,
+      nameCode: getNameCode(name),
+      streetLength: distanceBetween(firstLat, firstLng, lastLat, lastLng),
+      geometry,
+      lat: firstLat,
+      lng: firstLng,
+    };
 
-        out[sector] ||= [];
-        out[sector].push(street);
-      })
-      .on("end", () => {
-        console.log("Finished LINZ csv");
-        resolve(out);
-      })
-      .on("error", reject);
-  });
+    out[sector] ||= [];
+    out[sector].push(street);
+  }
+
+  console.log("Finished reading UGRC GeoJSON");
+  return out;
 }
 
 async function main() {
-  const linzList = await readFromLinz();
-  await fs.writeFile(linzJsonFile, JSON.stringify(linzList, null, 2));
+  const ugrcList = await readFromUgrc();
+  await fs.writeFile(ugrcJsonFile, JSON.stringify(ugrcList, null, 2));
 
   const osmPlanet = await readFromPlanet();
   await fs.writeFile(planetJsonFile, JSON.stringify(osmPlanet, null, 2));

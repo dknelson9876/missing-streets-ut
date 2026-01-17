@@ -18,14 +18,15 @@ export const Street = memo<{ street: MissingStreet }>(({ street }) => {
   }, []);
 
   // will never happen, just to keep TS happy
-  if (street.geometry.type !== "MultiLineString") return null;
+  if (street.geometry.type !== "LineString") return null;
 
   const { name } = street.properties;
 
-  const coords = street.geometry.coordinates.map((members) =>
-    members.map((latLng) => [...latLng].reverse() as LatLngTuple)
-  );
+  const coords = [
+    street.geometry.coordinates.map(([lng, lat]) => [lng, lat] as LatLngTuple),
+  ];
 
+  // console.log("Rendering street", name, "at", coords[0]);
   return (
     <Polyline positions={coords} color="red" weight={5}>
       <Popup ref={popup}>

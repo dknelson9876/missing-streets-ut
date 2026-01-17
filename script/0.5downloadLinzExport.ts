@@ -2,7 +2,7 @@ import { promises as fs } from "node:fs";
 import { parse } from "node:path";
 import Unzip from "adm-zip";
 import { api } from "./util/api";
-import { linzRawFile } from "./util";
+import { ugrcRawFile } from "./util";
 import { LINZ_LAYER_NAME_SUBSTR } from "../src/util";
 
 async function main() {
@@ -48,11 +48,11 @@ async function main() {
 
   zip.extractEntryTo(
     csvFile.entryName,
-    parse(linzRawFile).dir,
+    parse(ugrcRawFile).dir,
     /* maintainEntryPath */ false,
     /* overwrite */ true,
     /* keepOriginalPermission */ undefined,
-    parse(linzRawFile).base
+    parse(ugrcRawFile).base
   );
 
   console.log("Deleting temp file…");

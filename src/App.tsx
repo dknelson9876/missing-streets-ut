@@ -15,7 +15,7 @@ const home = (() => {
     if (Number.isNaN(z + lat + lng)) throw new Error();
     return { z, lat, lng };
   } catch {
-    return { z: 12, lat: -41.2835, lng: 174.7427 };
+    return { z: 16, lat: 40.675561, lng: -111.850777 };
   }
 })();
 
@@ -64,7 +64,7 @@ export const App: React.FC = () => {
       <aside>
         <div className="side-by-side">
           <div>
-            <h3>Missing Streets in New Zealand</h3>
+            <h3>Missing Streets in Utah</h3>
             {lastUpdated && (
               <small>
                 Data updated <TimeAgo date={lastUpdated} />
